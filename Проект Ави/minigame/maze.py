@@ -1,3 +1,4 @@
+import os
 import pygame
 from minigame import settings
 
@@ -19,10 +20,8 @@ def _build_wall_mask_from_image(img, wall_color=(255, 255, 255), buffer=2):
                     base.set_at((x, y), 1)
             except Exception:
                 base.set_at((x, y), 1)
-
     if buffer <= 0:
         return base
-
     dilated = pygame.mask.Mask((w, h))
     for y in range(h):
         for x in range(w):
@@ -37,7 +36,16 @@ def _build_wall_mask_from_image(img, wall_color=(255, 255, 255), buffer=2):
 def load_maze(buffer=2):
     # Загружает maze.png и строит WALL_MASK
     global MAZE_IMG, MAZE_RECT, WALL_MASK
-    maze_img = pygame.image.load("assets/maps/maze.png").convert()
+
+    # путь: файл maze.png относительно minigame/ (this file)
+    base_dir = os.path.dirname(__file__)  # minigame/
+    maze_path = os.path.normpath(os.path.join(base_dir, "..", "assets", "maps", "maze.png"))
+    try:
+        maze_img = pygame.image.load(maze_path).convert()
+    except Exception:
+        # fallback: пробуем старый относительный путь
+        maze_img = pygame.image.load("assets/maps/maze.png").convert()
+
     maze_rect = maze_img.get_rect()
     maze_rect.topleft = (0, settings.TOP_MARGIN)
 

@@ -1,3 +1,4 @@
+import os
 import pygame
 from settings import SCREEN_WIDTH, SCREEN_HEIGHT
 
@@ -11,7 +12,6 @@ except Exception:
 
 import minigame.maze as maze_module
 
-
 class Player:
     # --------------------------------------------------
     # фиксированная стартовая позиция игрока
@@ -22,7 +22,6 @@ class Player:
     def __init__(self):
         self.speed = 1.25
         self.direction = "idle"
-
         self.frame_index = 0
         self.frame_counter = 0
         self.frame_speed = 10
@@ -32,14 +31,26 @@ class Player:
         # загрузка спрайтов игрока
         # --------------------------------------------------
         def load_image(path):
+            # строим путь относительно этого файла (player.py), чтобы не зависеть от cwd
+            base_dir = os.path.dirname(__file__)
+            img_path = os.path.normpath(os.path.join(base_dir, path))
             try:
-                img = pygame.image.load(path).convert_alpha()
+                img = pygame.image.load(img_path).convert_alpha()
             except Exception:
-                img = pygame.Surface((64, 64), pygame.SRCALPHA)
-                img.fill((200, 200, 200, 255))
+                # fallback: попробовать относительный путь как было раньше
+                try:
+                    img = pygame.image.load(path).convert_alpha()
+                except Exception:
+                    # окончательный fallback — простой прямоугольник
+                    img = pygame.Surface((64, 64), pygame.SRCALPHA)
+                    img.fill((200, 200, 200, 255))
+
             w = max(1, int(img.get_width() * self.scale))
             h = max(1, int(img.get_height() * self.scale))
-            return pygame.transform.scale(img, (w, h))
+            try:
+                return pygame.transform.scale(img, (w, h))
+            except Exception:
+                return img
 
         self.sprites = {
             "idle": [load_image("Персонажи/Игрок/player_idle.png")],
@@ -64,55 +75,39 @@ class Player:
         # --------------------------------------------------
         self._fix_spawn()
 
-    # --------------------------------------------------
-    # проверка пересечения игрока со стенами лабиринта
-    # --------------------------------------------------
+    # остальной код без изменений...
     def _collides(self, rect):
         mask = getattr(maze_module, "WALL_MASK", None)
         maze_rect = getattr(maze_module, "MAZE_RECT", None)
-
         if mask is None or maze_rect is None:
             return False
-
         offset_x = rect.x - maze_rect.x
         offset_y = rect.y - maze_rect.y
-
         player_mask = pygame.mask.Mask((rect.width, rect.height), fill=True)
-
         try:
             overlap = mask.overlap_area(player_mask, (int(offset_x), int(offset_y)))
             return overlap > 0
         except Exception:
             return False
 
-    # --------------------------------------------------
-    # если игрок заспавнился внутри стены (редкий случай)
-    # --------------------------------------------------
     def _fix_spawn(self):
         if not self._collides(self.rect):
             return
-
-        # ищем ближайшее свободное место вокруг
         for radius in range(1, 200):
             for dx in range(-radius, radius + 1):
                 for dy in range(-radius, radius + 1):
                     test = self.rect.copy()
                     test.x += dx
                     test.y += dy
-
                     if not self._collides(test):
                         self.rect = test
                         self.pos_x = float(self.rect.x)
                         self.pos_y = float(self.rect.y)
                         return
 
-    # --------------------------------------------------
-    # движение игрока
-    # --------------------------------------------------
     def move(self, keys):
         dx = 0
         dy = 0
-
         if keys[pygame.K_w]:
             dy -= self.speed
         if keys[pygame.K_s]:
@@ -121,7 +116,6 @@ class Player:
             dx -= self.speed
         if keys[pygame.K_d]:
             dx += self.speed
-
         if dy < 0:
             self.direction = "up"
         elif dy > 0:
@@ -132,30 +126,23 @@ class Player:
             self.direction = "right"
         else:
             self.direction = "idle"
-
         # движение по X
         new_rect = self.rect.copy()
         new_rect.x += dx
         if not self._collides(new_rect):
             self.rect = new_rect
-
         # движение по Y
         new_rect = self.rect.copy()
         new_rect.y += dy
         if not self._collides(new_rect):
             self.rect = new_rect
-
         self.pos_x = self.rect.x
         self.pos_y = self.rect.y
 
-    # --------------------------------------------------
-    # обновление анимации
-    # --------------------------------------------------
     def update_animation(self):
         if self.direction == "idle":
             self.frame_index = 0
             return
-
         self.frame_counter += 1
         if self.frame_counter >= self.frame_speed:
             self.frame_counter = 0
@@ -163,9 +150,6 @@ class Player:
             if self.frame_index >= len(self.sprites[self.direction]):
                 self.frame_index = 0
 
-    # --------------------------------------------------
-    # отрисовка игрока
-    # --------------------------------------------------
     def draw(self, screen):
         self.image = self.sprites[self.direction][self.frame_index]
         screen.blit(self.image, self.rect)
